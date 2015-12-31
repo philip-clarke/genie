@@ -1,4 +1,10 @@
 import RPi.GPIO as GPIO
+import time
+
+import argparse
+parser = argparse.ArgumentParser(description='Control Energenie Switches')
+parser.add_argument('onoff', choices = ['on', 'off'], help = "specify on or off")
+parser.add_argument('socket', choices = [1, 2, 3, 4], type = int, help = "socket 1 .. 4")
 
 class Genie(object):
     def __init__(self):
@@ -30,21 +36,27 @@ class Genie(object):
         GPIO.output (16, False)
         GPIO.output (13, False)
 
+    def __del__(self):
+        GPIO.cleanup()
+
     def on(self, socket):
         # Set K0-K3
         code = self.make_code('on', socket)
+        print 'on code for socket %d is 0x%x' % (socket, code)
         self.set_code(code)
 
     def off(self, socket):
         # Set K0-K3
         code = self.make_code('off', socket)
+        print 'off code for socket %d is 0x%x' % (socket, code)
         self.set_code(code)
 
     def set_code(self, code):
         for gpio in [11, 15, 16, 13]:
             value = code & 1
-            GPIO.output (11, value)
-            value = value >> 1
+            GPIO.output (gpio, value)
+            #print "set gpio %d to %d" % (gpio, value)
+            code = code >> 1
         # let it settle, encoder requires this
         time.sleep(0.1)
         # Enable the modulator
@@ -65,16 +77,24 @@ class Genie(object):
         if onoff == 'on':
             onoff_flag = 1 << 3
         elif onoff == 'off':
-            onoff_flag = 1 << 3
+            onoff_flag = 0
         else:
             RuntimeError('Invalid onoff parameter %r' % onoff)
 
         socket_map = [7, 6, 5, 4]
-        socket_id = socket_map(number - 1)
+        socket_id = socket_map[number - 1]
 
-        return bit4 | socket_id
+        return onoff_flag | socket_id
 
-if __name__ == '__main__':
+def main():
+    args = parser.parse_args()
+    genie = Genie()
+    if args.onoff == 'on':
+        genie.on(args.socket)
+    elif args.onoff == 'off':
+        genie.off(args.socket)
+
+def test():
     genie = Genie()
     for socket in [1, 2, 3, 4]:
         raw_input('hit return key to send socket %d ON code' % socket)
@@ -82,4 +102,7 @@ if __name__ == '__main__':
 
         raw_input('hit return key to send socket %d OFF code' % socket)
         genie.off(socket)
+
+if __name__ == '__main__':
+    main()
 
